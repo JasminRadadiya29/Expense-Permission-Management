@@ -5,6 +5,50 @@ import { useToast } from '../components/Toast.jsx';
 import { Plus, Upload, DollarSign, Clock, TrendingUp, X, FileText, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import StatCard from '../components/StatCard.jsx';
 
+const EXPENSE_CATEGORIES = ['Travel', 'Food', 'Office Supplies', 'Software', 'Hardware', 'Marketing', 'Other'];
+const PAID_BY_OPTIONS = ['Company', 'Personal'];
+
+const getExpenseValidationErrorMessage = (expenseData) => {
+  if (!expenseData.description || expenseData.description.trim().length < 5) {
+    return 'Description must be at least 5 characters';
+  }
+
+  if (!EXPENSE_CATEGORIES.includes(expenseData.category)) {
+    return 'Please select a valid expense category';
+  }
+
+  if (!expenseData.date || Number.isNaN(Date.parse(expenseData.date))) {
+    return 'Please provide a valid expense date';
+  }
+
+  if (!Number.isFinite(expenseData.amount) || expenseData.amount <= 0) {
+    return 'Amount must be a positive number';
+  }
+
+  if (!expenseData.currency || expenseData.currency.length !== 3) {
+    return 'Currency must be a 3-letter code';
+  }
+
+  if (!Number.isFinite(expenseData.amountInBaseCurrency) || expenseData.amountInBaseCurrency <= 0) {
+    return 'Amount in base currency must be a positive number';
+  }
+
+  if (!PAID_BY_OPTIONS.includes(expenseData.paidBy)) {
+    return 'Paid by must be either Company or Personal';
+  }
+
+  return null;
+};
+
+const getApiValidationErrorMessage = (err) => {
+  const details = err?.response?.data?.details;
+  if (Array.isArray(details) && details.length > 0) {
+    return details.map((item) => item?.message).filter(Boolean).join(', ');
+  }
+
+  return err?.response?.data?.message || err?.response?.data?.error || 'Error creating expense';
+};
+
 const EmployeeExpenses = () => {
   const { user } = useAuth();
   const toast = useToast();
@@ -101,16 +145,23 @@ const EmployeeExpenses = () => {
     setLoading(true);
     try {
       const expenseData = {
-        description: formData.description,
+        description: formData.description.trim(),
         category: formData.category,
         date: formData.date,
         amount: parseFloat(formData.amount),
-        currency: formData.currency,
+        currency: (formData.currency || '').toUpperCase().trim(),
         amountInBaseCurrency: parseFloat(formData.amountInBaseCurrency),
         paidBy: formData.paidBy,
         remarks: formData.remarks,
         receiptUrl: formData.receiptUrl
       };
+
+      const validationMessage = getExpenseValidationErrorMessage(expenseData);
+      if (validationMessage) {
+        toast.error(validationMessage);
+        return;
+      }
+
       const response = await api.post('/expenses', expenseData);
       if (submit) {
         await api.post(`/expenses/${response.data.expense._id}/submit`);
@@ -132,7 +183,7 @@ const EmployeeExpenses = () => {
       setConversionError(null);
       fetchExpenses();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Error creating expense');
+      toast.error(getApiValidationErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -402,7 +453,7 @@ const EmployeeExpenses = () => {
                 <div>
                   <label className={labelClass}>Category <span className="text-red-400">*</span></label>
                   <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className={selectClass}>
-                    {['Travel', 'Food', 'Office Supplies', 'Software', 'Hardware', 'Marketing', 'Other'].map(c => (
+                    {EXPENSE_CATEGORIES.map(c => (
                       <option key={c} value={c} className="bg-slate-800">{c}</option>
                     ))}
                   </select>

@@ -6,6 +6,9 @@ import User from '../models/User.js';
 export const createExpense = async (req, res) => {
   try {
     const { description, category, date, amount, currency, paidBy, remarks, receiptUrl, amountInBaseCurrency } = req.body;
+    const normalizedAmountInBaseCurrency = Number.isFinite(amountInBaseCurrency) && amountInBaseCurrency > 0
+      ? amountInBaseCurrency
+      : amount;
 
     const expense = await Expense.create({
       employee: req.userId,
@@ -15,7 +18,7 @@ export const createExpense = async (req, res) => {
       date,
       amount,
       currency,
-      amountInBaseCurrency,
+      amountInBaseCurrency: normalizedAmountInBaseCurrency,
       paidBy,
       remarks,
       receiptUrl,
@@ -156,7 +159,11 @@ export const updateExpense = async (req, res) => {
     if (date) expense.date = date;
     if (amount) expense.amount = amount;
     if (currency) expense.currency = currency;
-    if (amountInBaseCurrency) expense.amountInBaseCurrency = amountInBaseCurrency;
+    if (amountInBaseCurrency !== undefined) {
+      expense.amountInBaseCurrency = amountInBaseCurrency;
+    } else if (amount !== undefined) {
+      expense.amountInBaseCurrency = amount;
+    }
     if (paidBy) expense.paidBy = paidBy;
     if (remarks !== undefined) expense.remarks = remarks;
     if (receiptUrl !== undefined) expense.receiptUrl = receiptUrl;

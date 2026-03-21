@@ -1,5 +1,6 @@
 import * as approvalRuleController from '../../../server/controllers/approvalRuleController.js';
 import { executeController } from '../../../lib/routeHandler.js';
+import { validateApprovalRulePayload } from '../../../lib/validation.js';
 
 export const runtime = 'nodejs';
 
@@ -8,5 +9,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  return executeController(request, approvalRuleController.createApprovalRule, { roles: ['Admin'] });
+  return executeController(request, approvalRuleController.createApprovalRule, {
+    roles: ['Admin'],
+    validateBody: validateApprovalRulePayload
+  });
 }

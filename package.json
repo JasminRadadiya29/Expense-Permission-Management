@@ -19,7 +19,6 @@
     "bcryptjs": "^3.0.2",
     "next": "^15.3.0",
     "framer-motion": "^12.23.22",
-    "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.344.0",
     "mongoose": "^8.19.0",

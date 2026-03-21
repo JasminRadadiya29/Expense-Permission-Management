@@ -1,12 +1,14 @@
 import * as approvalRuleController from '../../../../server/controllers/approvalRuleController.js';
 import { executeController } from '../../../../lib/routeHandler.js';
+import { validateApprovalRulePayload } from '../../../../lib/validation.js';
 
 export const runtime = 'nodejs';
 
 export async function PUT(request, { params }) {
   return executeController(request, approvalRuleController.updateApprovalRule, {
     params,
-    roles: ['Admin']
+    roles: ['Admin'],
+    validateBody: validateApprovalRulePayload
   });
 }
 

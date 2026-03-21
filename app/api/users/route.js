@@ -1,5 +1,6 @@
 import * as userController from '../../../server/controllers/userController.js';
 import { executeController } from '../../../lib/routeHandler.js';
+import { validateCreateUserPayload } from '../../../lib/validation.js';
 
 export const runtime = 'nodejs';
 
@@ -8,5 +9,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  return executeController(request, userController.createUser, { roles: ['Admin'] });
+  return executeController(request, userController.createUser, {
+    roles: ['Admin'],
+    validateBody: validateCreateUserPayload
+  });
 }

@@ -34,4 +34,6 @@ const approvalSchema = new mongoose.Schema({
   }
 });
 
-export default mongoose.model('Approval', approvalSchema);
+const Approval = mongoose.models.Approval || mongoose.model('Approval', approvalSchema);
+
+export default Approval;

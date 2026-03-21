@@ -5,13 +5,13 @@ import ErrorBoundary from './components/ErrorBoundary';
 import GlobalPointer from './components/GlobalPointer.jsx';
 import { ShootingStarsBackground } from './components/ShootingStarsBackground.jsx';
 import { ToastProvider } from './components/Toast.jsx';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import ChangePassword from './pages/ChangePassword';
-import AdminDashboard from './pages/AdminDashboard';
-import EmployeeExpenses from './pages/EmployeeExpenses';
-import ManagerDashboard from './pages/ManagerDashboard';
-import ApprovalRules from './pages/ApprovalRules';
+import Login from './views/Login';
+import Signup from './views/Signup';
+import ChangePassword from './views/ChangePassword';
+import AdminDashboard from './views/AdminDashboard';
+import EmployeeExpenses from './views/EmployeeExpenses';
+import ManagerDashboard from './views/ManagerDashboard';
+import ApprovalRules from './views/ApprovalRules';
 import Layout from './components/Layout';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {

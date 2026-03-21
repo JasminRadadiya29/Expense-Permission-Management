@@ -1,0 +1,18 @@
+import * as expenseController from '../../../../server/controllers/expenseController.js';
+import { executeController } from '../../../../lib/routeHandler.js';
+
+export const runtime = 'nodejs';
+
+export async function GET(request, { params }) {
+  return executeController(request, expenseController.getExpenseById, {
+    params,
+    roles: ['Admin', 'Manager', 'Employee']
+  });
+}
+
+export async function PUT(request, { params }) {
+  return executeController(request, expenseController.updateExpense, {
+    params,
+    roles: ['Admin', 'Manager', 'Employee']
+  });
+}

@@ -45,4 +45,6 @@ const approvalRuleSchema = new mongoose.Schema({
   }
 });
 
-export default mongoose.model('ApprovalRule', approvalRuleSchema);
+const ApprovalRule = mongoose.models.ApprovalRule || mongoose.model('ApprovalRule', approvalRuleSchema);
+
+export default ApprovalRule;

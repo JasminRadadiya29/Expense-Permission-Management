@@ -75,4 +75,6 @@ expenseSchema.pre('save', function(next) {
   next();
 });
 
-export default mongoose.model('Expense', expenseSchema);
+const Expense = mongoose.models.Expense || mongoose.model('Expense', expenseSchema);
+
+export default Expense;

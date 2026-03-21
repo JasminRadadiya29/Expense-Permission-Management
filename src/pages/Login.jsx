@@ -5,6 +5,7 @@ import api from '../services/api';
 import { sendPasswordResetEmail } from '../services/emailService';
 import { useToast } from '../components/Toast.jsx';
 import { Receipt, Mail, Lock, Eye, EyeOff, ArrowRight, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import AppLogo from '../components/AppLogo';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -144,12 +145,10 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12">
       <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg shadow-blue-500/30 mb-6 hover:scale-110 transition-transform duration-300">
-            <Receipt className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Welcome Back</h1>
-          <p className="text-slate-400 text-lg">Sign in to manage your expenses</p>
+        <div className="flex flex-col items-center mb-8">
+          <AppLogo size="lg" showText={true} className="justify-center" />
+          <h1 className="text-3xl font-bold text-white mt-6 mb-1">Welcome Back</h1>
+          <p className="text-slate-400">Sign in to manage your expenses</p>
         </div>
 
         <div className="bg-white/5 backdrop-blur-md rounded-3xl shadow-2xl border border-white/10 p-8">

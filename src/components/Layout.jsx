@@ -3,6 +3,7 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { LogOut, LayoutDashboard, Receipt, CheckSquare, Users, Settings, Key, Menu, X } from 'lucide-react';
 import { NavLink as RouterNavLink } from "react-router-dom";
+import AppLogo from './AppLogo';
 
 
 const Layout = () => {
@@ -45,13 +46,8 @@ const Layout = () => {
       >
         <div className="flex justify-between items-center">
           {/* Logo */}
-          <Link to="/dashboard" className="flex items-center gap-3 group">
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-blue-500/30 group-hover:shadow-blue-500/50 transition-all duration-200 group-hover:scale-105">
-              <Receipt className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent hidden sm:block">
-              Expense Manager
-            </span>
+          <Link to="/dashboard" className="flex items-center group">
+            <AppLogo size="sm" showText={true} />          
           </Link>
 
           {/* Desktop Navigation */}

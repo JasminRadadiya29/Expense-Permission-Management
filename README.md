@@ -1,46 +1,119 @@
-# Expense Management App
+# 💼 ExpenseFlow — Smart Expense Management
 
-A simple expense management application built with React and Node.js.
+> A full-stack expense management platform with multi-level approvals, real-time currency conversion, and a premium dark UI.
 
-## Features
+---
 
-- User authentication (login/signup)
-- Submit and track expenses
-- Approval workflow for managers
-- Receipt scanning with OCR
-- Multi-currency support
+## ✨ Features
 
-## Tech Stack
+### 👤 Role-Based Access
+| Role | Capabilities |
+|---|---|
+| **Employee** | Submit expenses, track status, convert currencies |
+| **Manager** | Review & approve/reject team expenses, view reports |
+| **Admin** | Manage all users, assign roles & managers |
 
-- Frontend: React + Vite + TailwindCSS
-- Backend: Node.js + Express + MongoDB
-- Authentication: JWT
-- OCR: Tesseract.js
+### 🧾 Expense Management
+- Submit expenses with category, amount, currency, description & receipt upload
+- Real-time **multi-currency conversion** (live exchange rates)
+- Status tracking: `Pending → Approved / Rejected`
+- Filter & search expenses by category, status, date
 
-## Quick Start
+### ✅ Approval Workflows
+- Configurable **multi-step approval rules**
+- Approval types: **All Required**, **Percentage-based**, **Specific Approver**, **Hybrid**
+- Managers receive itemized approval requests with comments
 
-1. Install dependencies:
+### 🛡️ Auth & Security
+- JWT-based authentication with refresh handling
+- Forced **password change** on first login (temporary password flow)
+- Secure password requirements enforcement
+- Email-based **forgot password** / reset flow (via EmailJS)
+
+### 🎨 UI/UX
+- **Dark glassmorphism** design system throughout
+- Animated starfield background
+- Toast notifications (no intrusive `alert()` dialogs)
+- Fully responsive for desktop & mobile
+
+---
+
+## 🛠️ Tech Stack
+
+**Frontend**
+- React 18 + Vite
+- Tailwind CSS
+- Lucide React (icons)
+- React Router DOM
+
+**Backend**
+- Node.js + Express
+- MongoDB + Mongoose
+- JWT authentication
+- EmailJS (transactional email)
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js ≥ 18
+- MongoDB Atlas account (or local MongoDB)
+
+### Installation
+
 ```bash
+# Clone the repo
+git clone https://github.com/your-username/expense-management.git
+cd expense-management
+
+# Install dependencies
 npm install
 ```
 
-2. Create a `.env` file with your MongoDB connection:
+### Environment Variables
+
+Create a `.env` file in the root directory:
+
 ```env
-MONGODB_URI=your-mongodb-connection-string
-JWT_SECRET=your-jwt-secret
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret_key
 PORT=5000
+NODE_ENV=development
 ```
 
-3. Run the application:
+### Run the App
+
 ```bash
+# Start both frontend and backend concurrently
 npm run dev
 ```
 
-4. Access the app at http://localhost:5173
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:5000`
 
-## Available Scripts
+---
 
-- `npm run dev` - Start both frontend and backend
-- `npm run server` - Start backend only
-- `npm run client` - Start frontend only
-- `npm run build` - Build for production
+## 📁 Project Structure
+
+```
+expense-management/
+├── server/
+│   ├── controllers/       # Business logic
+│   ├── models/            # Mongoose schemas
+│   ├── routes/            # API routes
+│   ├── middleware/        # Auth, validation, security
+│   └── index.js
+├── src/
+│   ├── components/        # Shared UI components
+│   ├── pages/             # Route-level page components
+│   ├── contexts/          # Auth context
+│   └── services/          # API + email services
+└── index.html
+```
+
+---
+
+## 📜 License
+
+MIT © 2024 — Feel free to fork and build on it.

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <!-- Main background gradient: deep navy to indigo -->
+    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="50%" stop-color="#312e81"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <!-- Wallet body gradient -->
+    <linearGradient id="wallet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <!-- Card gradient (gold) -->
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <!-- Card 2 gradient -->
+    <linearGradient id="card2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <!-- Shine -->
+    <linearGradient id="shine" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="white" stop-opacity="0.18"/>
+      <stop offset="60%" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="64" height="64" rx="15" fill="url(#bg)"/>
+  <!-- Subtle shine -->
+  <rect width="64" height="64" rx="15" fill="url(#shine)"/>
+
+  <!-- Wallet body (rounded rectangle, main) -->
+  <rect x="8" y="22" width="40" height="28" rx="5" fill="url(#wallet)" opacity="0.95"/>
+
+  <!-- Wallet flap / top portion -->
+  <rect x="8" y="22" width="40" height="9" rx="5" fill="#4f46e5"/>
+  <rect x="8" y="27" width="40" height="4" fill="#4f46e5"/>
+
+  <!-- Card 1 sticking out (gold) -->
+  <rect x="30" y="15" width="24" height="15" rx="3.5" fill="url(#card)" transform="rotate(-8 30 15)"/>
+  <!-- Card 1 chip -->
+  <rect x="32" y="18" width="5" height="4" rx="1" fill="#b45309" transform="rotate(-8 32 18)" opacity="0.7"/>
+
+  <!-- Card 2 sticking behind (green/teal) -->
+  <rect x="24" y="12" width="22" height="14" rx="3.5" fill="url(#card2)" transform="rotate(4 24 12)" opacity="0.85"/>
+
+  <!-- Wallet clasp / coin circle -->
+  <circle cx="48" cy="36" r="7" fill="white" opacity="0.08"/>
+  <circle cx="48" cy="36" r="5" fill="white" opacity="0.12"/>
+  <text x="48" y="40" font-family="Arial, sans-serif" font-size="8" font-weight="900" fill="white" text-anchor="middle" opacity="0.9">$</text>
+
+  <!-- Three horizontal lines (cash lines inside wallet) -->
+  <rect x="12" y="34" width="22" height="2.5" rx="1.25" fill="white" opacity="0.35"/>
+  <rect x="12" y="39" width="16" height="2.5" rx="1.25" fill="white" opacity="0.25"/>
+  <rect x="12" y="44" width="19" height="2.5" rx="1.25" fill="white" opacity="0.2"/>
+</svg>

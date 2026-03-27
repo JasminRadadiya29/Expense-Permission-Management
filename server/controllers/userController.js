@@ -1,13 +1,54 @@
 import User from '../models/User.js';
-import { sendPasswordResetEmail } from '../utils/email.js';
+import crypto from 'crypto';
 
 const generateTemporaryPassword = () => {
-  return Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+  return crypto.randomBytes(16).toString('hex');
+};
+
+const isEligibleManagerRole = (role) => role === 'Manager' || role === 'Admin';
+
+const validateManagerAssignment = async ({ companyId, userId, managerId }) => {
+  if (!managerId) {
+    return null;
+  }
+
+  if (userId && userId.toString() === managerId.toString()) {
+    return 'User cannot be their own manager';
+  }
+
+  const managerUser = await User.findOne({ _id: managerId, company: companyId }).select('_id role manager');
+  if (!managerUser) {
+    return 'Assigned manager not found in company';
+  }
+
+  if (!isEligibleManagerRole(managerUser.role)) {
+    return 'Assigned manager must have Manager or Admin role';
+  }
+
+  if (userId) {
+    let cursor = managerUser;
+    const visited = new Set();
+
+    while (cursor?.manager) {
+      const managerKey = cursor.manager.toString();
+      if (visited.has(managerKey)) break;
+      visited.add(managerKey);
+
+      if (managerKey === userId.toString()) {
+        return 'Manager assignment creates a reporting cycle';
+      }
+
+      cursor = await User.findOne({ _id: cursor.manager, company: companyId }).select('_id manager');
+      if (!cursor) break;
+    }
+  }
+
+  return null;
 };
 
 export const getUsers = async (req, res) => {
   try {
-    const users = await User.find({ company: req.companyId })
+    const users = await User.find({ company: req.companyId, isActive: true })
       .populate('manager', 'name email')
       .select('-password')
       .sort({ createdAt: -1 });
@@ -22,18 +63,29 @@ export const getUsers = async (req, res) => {
 export const createUser = async (req, res) => {
   try {
     const { name, email, role, managerId, currency } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    const managerValidationError = await validateManagerAssignment({
+      companyId: req.companyId,
+      managerId,
+    });
+
+    if (managerValidationError) {
+      return res.status(400).json({ error: managerValidationError });
     }
 
     const temporaryPassword = generateTemporaryPassword();
 
     const user = await User.create({
       name,
-      email,
+      email: normalizedEmail,
       password: temporaryPassword,
+      isTemporaryPassword: true,
       role,
       company: req.companyId,
       manager: managerId || null,
@@ -48,7 +100,7 @@ export const createUser = async (req, res) => {
     res.status(201).json({ 
       user: populatedUser,
       temporaryPassword: temporaryPassword,
-      email: email,
+      email: normalizedEmail,
       userName: name
     });
   } catch (error) {
@@ -65,6 +117,25 @@ export const updateUser = async (req, res) => {
     const user = await User.findOne({ _id: userId, company: req.companyId });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (managerId !== undefined) {
+      const managerValidationError = await validateManagerAssignment({
+        companyId: req.companyId,
+        userId,
+        managerId,
+      });
+
+      if (managerValidationError) {
+        return res.status(400).json({ error: managerValidationError });
+      }
+    }
+
+    if (role && !isEligibleManagerRole(role)) {
+      const directReportsCount = await User.countDocuments({ company: req.companyId, manager: userId });
+      if (directReportsCount > 0) {
+        return res.status(400).json({ error: 'Cannot demote user with active direct reports. Reassign reports first.' });
+      }
     }
 
     if (name) user.name = name;
@@ -97,6 +168,7 @@ export const resetUserPassword = async (req, res) => {
     const temporaryPassword = generateTemporaryPassword();
     user.password = temporaryPassword;
     user.isTemporaryPassword = true;
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
 
     // Return the temporary password so frontend can send email using EmailJS
@@ -116,7 +188,8 @@ export const getManagers = async (req, res) => {
   try {
     const managers = await User.find({
       company: req.companyId,
-      role: { $in: ['Manager', 'Admin'] }
+      role: { $in: ['Manager', 'Admin'] },
+      isActive: true
     }).select('_id name email role');
 
     res.json({ managers });

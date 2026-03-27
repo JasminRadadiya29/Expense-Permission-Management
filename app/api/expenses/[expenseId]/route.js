@@ -4,14 +4,16 @@ import { validateUpdateExpensePayload } from '../../../../lib/validation.js';
 
 export const runtime = 'nodejs';
 
-export async function GET(request, { params }) {
+export async function GET(request, context) {
+  const params = await context.params;
   return executeController(request, expenseController.getExpenseById, {
     params,
     roles: ['Admin', 'Manager', 'Employee']
   });
 }
 
-export async function PUT(request, { params }) {
+export async function PUT(request, context) {
+  const params = await context.params;
   return executeController(request, expenseController.updateExpense, {
     params,
     roles: ['Admin', 'Manager', 'Employee'],

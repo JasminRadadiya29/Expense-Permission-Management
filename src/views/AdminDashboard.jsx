@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Mail, Plus, TrendingUp, X, Search, UserCheck, Briefcase, Loader2 } from 'lucide-react';
 import StatCard from '../components/StatCard.jsx';
+import SelectField from '../components/SelectField.jsx';
 import { useToast, ConfirmDialog } from '../components/Toast.jsx';
 import api from '../services/api';
+import { getApiErrorMessage } from '../services/api';
 import { sendWelcomeEmail, sendPasswordResetEmail } from '../services/emailService';
 
 const AdminDashboard = () => {
@@ -34,6 +36,12 @@ const AdminDashboard = () => {
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(''), 3000);
+    return () => clearTimeout(timer);
+  }, [error]);
 
   const fetchUsers = async () => {
     try {
@@ -81,7 +89,7 @@ const AdminDashboard = () => {
       fetchUsers();
       fetchManagers();
     } catch (err) {
-      setError(err.response?.data?.error || 'Error creating user');
+      setError(getApiErrorMessage(err, 'Error creating user'));
     } finally {
       setLoading(false);
     }
@@ -102,20 +110,42 @@ const AdminDashboard = () => {
         toast.error('Failed to send password reset email.');
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Error sending reset email');
+      toast.error(getApiErrorMessage(err, 'Error sending reset email'));
     } finally {
       setConfirmReset(null);
     }
   };
 
   const handleRoleChange = async (userId, newRole) => {
+    const user = users.find(u => u._id === userId);
+    if (!user) return;
+
+    // If trying to demote from Manager/Admin to Employee
+    if ((user.role === 'Manager' || user.role === 'Admin') && newRole === 'Employee') {
+      const directReports = users.filter(u => u.manager?._id === userId).length;
+      if (directReports > 0) {
+        toast.error(`Cannot demote user with ${directReports} active report${directReports > 1 ? 's' : ''}. Reassign reports first.`);
+        return;
+      }
+
+      // Show confirmation dialog for role change
+      if (!window.confirm(
+        `Change role from ${user.role} to Employee?\n\nThis action is irreversible once saved.`
+      )) {
+        return;
+      }
+    }
+
     try {
       await api.put(`/users/${userId}`, { role: newRole });
       fetchUsers();
       fetchManagers();
       toast.success('Role updated successfully');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Error updating role');
+      const errorMsg = err.response?.data?.error || 'Error updating role';
+      toast.error(errorMsg);
+      // Revert the select to the original value
+      fetchUsers();
     }
   };
 
@@ -252,27 +282,31 @@ const AdminDashboard = () => {
                       <span className="text-sm text-slate-300">{user.email}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <select
+                      <SelectField
                         value={user.role}
                         onChange={(e) => handleRoleChange(user._id, e.target.value)}
-                        className={`text-xs font-bold border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-transparent ${getRoleBadgeColor(user.role)}`}
-                      >
-                        <option value="Employee" className="bg-slate-800 text-white">Employee</option>
-                        <option value="Manager" className="bg-slate-800 text-white">Manager</option>
-                        <option value="Admin" className="bg-slate-800 text-white">Admin</option>
-                      </select>
+                        options={[
+                          { value: 'Employee', label: 'Employee' },
+                          { value: 'Manager', label: 'Manager' },
+                          { value: 'Admin', label: 'Admin' }
+                        ]}
+                        size="sm"
+                        className={getRoleBadgeColor(user.role)}
+                      />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <select
+                      <SelectField
                         value={user.manager?._id || ''}
                         onChange={(e) => handleManagerChange(user._id, e.target.value)}
-                        className="text-sm bg-white/5 border border-white/15 rounded-lg px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-slate-200"
-                      >
-                        <option value="" className="bg-slate-800">No Manager</option>
-                        {managers.filter(m => m._id !== user._id).map((manager) => (
-                          <option key={manager._id} value={manager._id} className="bg-slate-800">{manager.name}</option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: '', label: 'No Manager' },
+                          ...managers.filter(m => m._id !== user._id).map((manager) => ({
+                            value: manager._id,
+                            label: manager.name
+                          }))
+                        ]}
+                        size="sm"
+                      />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
@@ -355,28 +389,22 @@ const AdminDashboard = () => {
                     <label className="block text-sm font-bold text-slate-300 mb-2">
                       Role <span className="text-red-400">*</span>
                     </label>
-                    <select
+                    <SelectField
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-full px-4 py-3.5 bg-slate-800 border border-white/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white font-medium"
-                    >
-                      <option value="Employee" className="bg-slate-800">Employee</option>
-                      <option value="Manager" className="bg-slate-800">Manager</option>
-                    </select>
+                      options={[{ value: 'Employee', label: 'Employee' }, { value: 'Manager', label: 'Manager' }]}
+                      placeholder="Select role"
+                    />
                   </div>
 
                   <div>
                     <label className="block text-sm font-bold text-slate-300 mb-2">Assign Manager</label>
-                    <select
+                    <SelectField
                       value={formData.managerId}
                       onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
-                      className="w-full px-4 py-3.5 bg-slate-800 border border-white/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white font-medium"
-                    >
-                      <option value="" className="bg-slate-800">No Manager</option>
-                      {managers.map((manager) => (
-                        <option key={manager._id} value={manager._id} className="bg-slate-800">{manager.name}</option>
-                      ))}
-                    </select>
+                      options={[{ value: '', label: 'No Manager' }, ...managers.map(m => ({ value: m._id, label: m.name }))]}
+                      placeholder="Select manager"
+                    />
                   </div>
                 </div>
               </div>

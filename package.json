@@ -14,28 +14,22 @@
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
-    "@supabase/supabase-js": "^2.57.4",
     "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
-    "next": "^15.3.0",
     "framer-motion": "^12.23.22",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.344.0",
     "mongoose": "^8.19.0",
-    "multer": "^2.0.2",
+    "next": "^15.3.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^7.9.3",
-    "rxjs": "^7.8.2",
-    "tesseract.js": "^6.0.1"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@next/eslint-plugin-next": "^16.2.1",
     "autoprefixer": "^10.4.18",
-    "esbuild": "^0.21.5",
     "eslint": "^9.9.1",
     "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^15.9.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1"

@@ -7,8 +7,9 @@ export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
   const addToast = useCallback((message, type = 'info', duration = 4000) => {
+    const safeDuration = type === 'error' ? Math.max(duration, 3000) : duration;
     const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, message, type, duration }]);
+    setToasts(prev => [...prev, { id, message, type, duration: safeDuration }]);
     return id;
   }, []);
 

@@ -39,6 +39,19 @@ const approvalRuleSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  version: {
+    type: Number,
+    default: 1
+  },
+  versionHistory: [{
+    version: Number,
+    steps: mongoose.Schema.Types.Mixed,
+    updatedAt: Date,
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  }],
   createdAt: {
     type: Date,
     default: Date.now

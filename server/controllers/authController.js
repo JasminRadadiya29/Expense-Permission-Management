@@ -2,35 +2,56 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import User from '../models/User.js';
 import Company from '../models/Company.js';
-import { sendPasswordResetEmail } from '../utils/email.js';
+import { sendPasswordResetLinkEmail } from '../utils/email.js';
+import { logAuditAction } from '../utils/auditLog.js';
 
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '1h' });
+const generateToken = (user) => {
+  // Ensure tokenVersion is always a number (default to 0 if not set)
+  const tokenVersion = typeof user.tokenVersion === 'number' ? user.tokenVersion : 0;
+  return jwt.sign(
+    { userId: user._id, tokenVersion },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+  );
 };
 
-const generateRefreshToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' });
+const generateRefreshToken = (user) => {
+  // Ensure tokenVersion is always a number (default to 0 if not set)
+  const tokenVersion = typeof user.tokenVersion === 'number' ? user.tokenVersion : 0;
+  return jwt.sign(
+    { userId: user._id, tokenVersion },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+  );
 };
 
-const generateTemporaryPassword = () => {
-  // Cryptographically secure password generation
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  let password = '';
-  
-  for (let i = 0; i < 12; i++) {
-    const randomIndex = crypto.randomInt(0, chars.length);
-    password += chars[randomIndex];
-  }
-  
-  return password;
+const generateTokenPair = (user) => ({
+  token: generateToken(user),
+  refreshToken: generateRefreshToken(user),
+});
+
+const buildResetBaseUrl = () => {
+  return (
+    process.env.APP_BASE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    'http://localhost:3000'
+  );
+};
+
+const createPasswordResetToken = () => {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  return { rawToken, tokenHash };
 };
 
 export const signup = async (req, res) => {
   try {
     const { name, email, password, confirmPassword, country } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(400).json({ 
         error: 'Email already registered',
@@ -69,15 +90,14 @@ export const signup = async (req, res) => {
     // Create user
     const user = await User.create({
       name,
-      email,
+      email: normalizedEmail,
       password,
       role: 'Admin',
       company: company._id,
       currency: baseCurrency
     });
 
-    const token = generateToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    const { token, refreshToken } = generateTokenPair(user);
 
     res.status(201).json({
       message: 'Account created successfully',
@@ -127,8 +147,9 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
-    const user = await User.findOne({ email }).populate('company').populate('manager', 'name email');
+    const user = await User.findOne({ email: normalizedEmail }).populate('company').populate('manager', 'name email');
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -138,8 +159,19 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const token = generateToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    const { token, refreshToken } = generateTokenPair(user);
+
+    // Log successful login
+    if (user.company) {
+      await logAuditAction({
+        company: user.company._id,
+        user: user._id,
+        action: 'LOGIN',
+        resourceType: 'User',
+        resourceId: user._id,
+        details: { email: normalizedEmail }
+      }).catch(err => console.error('Audit log error:', err));
+    }
 
     res.json({
       token,
@@ -164,26 +196,63 @@ export const login = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
-    const user = await User.findOne({ email });
+    const genericResponse = {
+      message: 'If an account exists, a password reset link has been sent.',
+    };
+
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.json(genericResponse);
     }
 
-    const temporaryPassword = generateTemporaryPassword();
-    user.password = temporaryPassword;
-    user.isTemporaryPassword = true;
+    const { rawToken, tokenHash } = createPasswordResetToken();
+    user.passwordResetTokenHash = tokenHash;
+    user.passwordResetExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();
 
-    // Return the temporary password so frontend can send email using EmailJS
-    res.json({ 
-      message: 'Password reset successful', 
-      temporaryPassword: temporaryPassword,
-      email: email 
+    const resetBaseUrl = buildResetBaseUrl();
+    const resetUrl = `${resetBaseUrl}/reset-password?token=${rawToken}`;
+
+    await sendPasswordResetLinkEmail({
+      toEmail: normalizedEmail,
+      resetUrl,
     });
+
+    return res.json(genericResponse);
   } catch (error) {
     console.error('Forgot password error:', error);
-    res.status(500).json({ error: 'Error resetting password' });
+    return res.status(500).json({ error: 'Error resetting password' });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      passwordResetTokenHash: tokenHash,
+      passwordResetExpiresAt: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Reset link is invalid or expired' });
+    }
+
+    user.password = newPassword;
+    user.isTemporaryPassword = false;
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpiresAt = null;
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+    await user.save();
+
+    return res.json({ message: 'Password reset successful. Please login with your new password.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return res.status(500).json({ error: 'Error resetting password' });
   }
 };
 
@@ -202,8 +271,13 @@ export const refreshToken = async (req, res) => {
       return res.status(401).json({ error: 'Invalid refresh token' });
     }
 
-    const newToken = generateToken(user._id);
-    const newRefreshToken = generateRefreshToken(user._id);
+    const decodedTokenVersion = typeof decoded.tokenVersion === 'number' ? decoded.tokenVersion : 0;
+    const currentTokenVersion = user.tokenVersion ?? 0;
+    if (decodedTokenVersion !== currentTokenVersion) {
+      return res.status(401).json({ error: 'Refresh token expired. Please login again.' });
+    }
+
+    const { token: newToken, refreshToken: newRefreshToken } = generateTokenPair(user);
 
     res.json({
       token: newToken,
@@ -220,7 +294,7 @@ export const changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
     const userId = req.userId;
 
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).populate('company');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -234,7 +308,20 @@ export const changePassword = async (req, res) => {
     // Update password
     user.password = newPassword;
     user.isTemporaryPassword = false;
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
+
+    // Log password change
+    if (user.company) {
+      await logAuditAction({
+        company: user.company._id,
+        user: user._id,
+        action: 'PASSWORD_CHANGE',
+        resourceType: 'User',
+        resourceId: user._id,
+        details: { email: user.email }
+      }).catch(err => console.error('Audit log error:', err));
+    }
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
@@ -261,5 +348,34 @@ export const getMe = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Error fetching user data' });
+  }
+};
+
+export const logout = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).populate('company');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+    await user.save();
+
+    // Log logout
+    if (user.company) {
+      await logAuditAction({
+        company: user.company._id,
+        user: user._id,
+        action: 'LOGOUT',
+        resourceType: 'User',
+        resourceId: user._id,
+        details: { email: user.email }
+      }).catch(err => console.error('Audit log error:', err));
+    }
+
+    return res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    return res.status(500).json({ error: 'Error logging out' });
   }
 };

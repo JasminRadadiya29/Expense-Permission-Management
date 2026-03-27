@@ -17,14 +17,23 @@ export const AuthProvider = ({ children }) => {
       if (storedToken && storedUser) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
+        console.log('Auth initialized with stored token');
       } else if (storedRefreshToken) {
         // Try to refresh token
+        console.log('Attempting to refresh token during initialization...');
         const refreshed = await refreshToken();
         if (!refreshed) {
+          console.warn('Token refresh failed during initialization, logging out');
           logout();
         }
       }
       setLoading(false);
+
+      try {
+        await api.get('/csrf-token');
+      } catch (error) {
+        console.warn('Failed to initialize CSRF token:', error.message);
+      }
     };
 
     initializeAuth();
@@ -56,17 +65,27 @@ export const AuthProvider = ({ children }) => {
   const refreshToken = async () => {
     try {
       const storedRefreshToken = localStorage.getItem('refreshToken');
-      if (!storedRefreshToken) return false;
+      if (!storedRefreshToken) {
+        console.warn('No refresh token available');
+        return false;
+      }
 
+      console.log('Refreshing token...');
       const response = await api.post('/auth/refresh', { refreshToken: storedRefreshToken });
       const { token, refreshToken: newRefreshToken } = response.data;
+
+      if (!token) {
+        console.error('Token refresh response missing token');
+        return false;
+      }
 
       localStorage.setItem('token', token);
       localStorage.setItem('refreshToken', newRefreshToken);
       setToken(token);
+      console.log('Token refreshed successfully in AuthContext');
       return true;
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      console.error('Token refresh failed in AuthContext:', error.message, error.response?.status);
       return false;
     }
   };
@@ -80,6 +99,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    const tokenToRevoke = localStorage.getItem('token');
+    if (tokenToRevoke) {
+      api.post('/auth/logout', {}, {
+        headers: {
+          Authorization: `Bearer ${tokenToRevoke}`,
+        },
+      }).catch(() => {
+      });
+    }
+
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');

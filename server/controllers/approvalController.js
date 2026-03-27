@@ -1,6 +1,8 @@
+import mongoose from 'mongoose';
 import Approval from '../models/Approval.js';
 import Expense from '../models/Expense.js';
 import ApprovalRule from '../models/ApprovalRule.js';
+import { logAuditAction } from '../utils/auditLog.js';
 
 export const getApprovalsForUser = async (req, res) => {
   try {
@@ -25,120 +27,181 @@ export const getApprovalsForUser = async (req, res) => {
 };
 
 export const processApproval = async (req, res) => {
+  const session = await mongoose.startSession();
+
   try {
     const { approvalId } = req.params;
     const { status, comments } = req.body;
 
-    const approval = await Approval.findOne({
-      _id: approvalId,
-      approver: req.userId
-    }).populate('expense');
+    let approvalDocId;
+    let expenseDocId;
 
-    if (!approval) {
-      return res.status(404).json({ error: 'Approval not found' });
-    }
+    await session.withTransaction(async () => {
+      const approval = await Approval.findOne({
+        _id: approvalId,
+        approver: req.userId,
+      }).session(session);
 
-    if (approval.status !== 'Pending') {
-      return res.status(400).json({ error: 'Approval already processed' });
-    }
+      if (!approval) {
+        throw new Error('APPROVAL_NOT_FOUND');
+      }
 
-    approval.status = status;
-    approval.comments = comments || '';
-    approval.approvedAt = new Date();
-    await approval.save();
+      if (approval.status !== 'Pending') {
+        throw new Error('APPROVAL_ALREADY_PROCESSED');
+      }
 
-    const expense = await Expense.findById(approval.expense._id);
+      const expense = await Expense.findById(approval.expense).session(session);
+      if (!expense) {
+        throw new Error('EXPENSE_NOT_FOUND');
+      }
 
-    if (status === 'Rejected') {
-      expense.status = 'Rejected';
-      await expense.save();
-      return res.json({ approval, expense });
-    }
+      if (expense.status !== 'Waiting Approval') {
+        throw new Error('EXPENSE_NOT_WAITING_APPROVAL');
+      }
 
-    const currentStepApprovals = await Approval.find({
-      expense: expense._id,
-      step: approval.step
-    });
+      approval.status = status;
+      approval.comments = comments || '';
+      approval.approvedAt = new Date();
+      await approval.save({ session });
 
-    const approvalRule = await ApprovalRule.findOne({
-      company: expense.company,
-      isActive: true
-    });
+      if (status === 'Rejected') {
+        await Approval.updateMany(
+          { expense: expense._id, status: 'Pending' },
+          { status: 'Rejected', comments: 'Closed due to rejection in approval chain', approvedAt: new Date() },
+          { session },
+        );
+        expense.status = 'Rejected';
+        await expense.save({ session });
 
-    let stepCompleted = false;
+        approvalDocId = approval._id;
+        expenseDocId = expense._id;
+        return;
+      }
 
-    if (approvalRule && approvalRule.steps.length > 0) {
-      const currentStepRule = approvalRule.steps.find(s => s.stepNumber === approval.step);
+      const currentStepApprovals = await Approval.find({
+        expense: expense._id,
+        step: approval.step,
+      }).session(session);
 
-      if (currentStepRule) {
-        if (currentStepRule.approvalType === 'specific' && currentStepRule.specificApprovers.length > 0) {
-          const hasSpecificApproval = currentStepApprovals.some(
-            a => a.status === 'Approved' &&
-            currentStepRule.specificApprovers.some(sa => sa.toString() === a.approver.toString())
-          );
-          stepCompleted = hasSpecificApproval;
-        } else if (currentStepRule.approvalType === 'percentage') {
-          const approvedCount = currentStepApprovals.filter(a => a.status === 'Approved').length;
-          const totalCount = currentStepApprovals.length;
-          const approvalPercentage = (approvedCount / totalCount) * 100;
-          stepCompleted = approvalPercentage >= (currentStepRule.requiredPercentage || 100);
-        } else if (currentStepRule.approvalType === 'hybrid') {
-          const hasSpecificApproval = currentStepRule.specificApprovers.length > 0 &&
-            currentStepApprovals.some(
-              a => a.status === 'Approved' &&
-              currentStepRule.specificApprovers.some(sa => sa.toString() === a.approver.toString())
+      const approvalRule = await ApprovalRule.findOne({
+        company: expense.company,
+        isActive: true,
+      }).session(session);
+
+      let stepCompleted = false;
+
+      if (approvalRule && approvalRule.steps.length > 0) {
+        const currentStepRule = approvalRule.steps.find((s) => s.stepNumber === approval.step);
+
+        if (currentStepRule) {
+          if (currentStepRule.approvalType === 'specific' && currentStepRule.specificApprovers.length > 0) {
+            const hasSpecificApproval = currentStepApprovals.some(
+              (a) =>
+                a.status === 'Approved' &&
+                currentStepRule.specificApprovers.some((sa) => sa.toString() === a.approver.toString()),
             );
+            stepCompleted = hasSpecificApproval;
+          } else if (currentStepRule.approvalType === 'percentage') {
+            const approvedCount = currentStepApprovals.filter((a) => a.status === 'Approved').length;
+            const totalCount = currentStepApprovals.length;
+            const approvalPercentage = (approvedCount / totalCount) * 100;
+            stepCompleted = approvalPercentage >= (currentStepRule.requiredPercentage || 100);
+          } else if (currentStepRule.approvalType === 'hybrid') {
+            const hasSpecificApproval =
+              currentStepRule.specificApprovers.length > 0 &&
+              currentStepApprovals.some(
+                (a) =>
+                  a.status === 'Approved' &&
+                  currentStepRule.specificApprovers.some((sa) => sa.toString() === a.approver.toString()),
+              );
 
-          const approvedCount = currentStepApprovals.filter(a => a.status === 'Approved').length;
-          const totalCount = currentStepApprovals.length;
-          const approvalPercentage = (approvedCount / totalCount) * 100;
-          const meetsPercentage = approvalPercentage >= (currentStepRule.requiredPercentage || 100);
+            const approvedCount = currentStepApprovals.filter((a) => a.status === 'Approved').length;
+            const totalCount = currentStepApprovals.length;
+            const approvalPercentage = (approvedCount / totalCount) * 100;
+            const meetsPercentage = approvalPercentage >= (currentStepRule.requiredPercentage || 100);
 
-          stepCompleted = hasSpecificApproval || meetsPercentage;
+            stepCompleted = hasSpecificApproval || meetsPercentage;
+          } else {
+            stepCompleted = currentStepApprovals.every((a) => a.status === 'Approved');
+          }
         } else {
-          stepCompleted = currentStepApprovals.every(a => a.status === 'Approved');
+          stepCompleted = currentStepApprovals.every((a) => a.status === 'Approved');
         }
       } else {
-        stepCompleted = currentStepApprovals.every(a => a.status === 'Approved');
+        stepCompleted = currentStepApprovals.every((a) => a.status === 'Approved');
       }
-    } else {
-      stepCompleted = currentStepApprovals.every(a => a.status === 'Approved');
-    }
 
-    if (stepCompleted) {
-      const nextStep = approval.step + 1;
-      const nextStepRule = approvalRule?.steps.find(s => s.stepNumber === nextStep);
+      if (stepCompleted) {
+        const nextStep = approval.step + 1;
+        const nextStepRule = approvalRule?.steps.find((s) => s.stepNumber === nextStep);
 
-      if (nextStepRule && nextStepRule.approvers.length > 0) {
-        for (const approverId of nextStepRule.approvers) {
-          await Approval.create({
+        if (nextStepRule && nextStepRule.approvers.length > 0) {
+          const nextStepDocs = nextStepRule.approvers.map((approverId) => ({
             expense: expense._id,
             approver: approverId,
             step: nextStep,
-            status: 'Pending'
-          });
-        }
-        expense.currentApprovalStep = nextStep;
-        await expense.save();
-      } else {
-        expense.status = 'Approved';
-        await expense.save();
-      }
-    }
+            status: 'Pending',
+          }));
 
-    const updatedApproval = await Approval.findById(approval._id)
-      .populate({
+          await Approval.insertMany(nextStepDocs, { session });
+          expense.currentApprovalStep = nextStep;
+          await expense.save({ session });
+        } else {
+          expense.status = 'Approved';
+          await expense.save({ session });
+        }
+      }
+
+      approvalDocId = approval._id;
+      expenseDocId = expense._id;
+    });
+
+    const [updatedApproval, expense] = await Promise.all([
+      Approval.findById(approvalDocId).populate({
         path: 'expense',
         populate: {
           path: 'employee',
-          select: 'name email'
-        }
-      });
+          select: 'name email',
+        },
+      }),
+      Expense.findById(expenseDocId),
+    ]);
 
-    res.json({ approval: updatedApproval, expense });
+    // Log approval action
+    const action = updatedApproval.status === 'Rejected' ? 'REJECT' : 'APPROVE';
+    await logAuditAction({
+      company: expense.company,
+      user: req.userId,
+      action,
+      resourceType: 'Approval',
+      resourceId: approvalDocId,
+      details: {
+        expenseId: expenseDocId,
+        approvalStatus: updatedApproval.status,
+        comments: updatedApproval.comments,
+        expenseStatus: expense.status
+      }
+    }).catch(err => console.error('Audit log error:', err));
+
+    return res.json({ approval: updatedApproval, expense });
   } catch (error) {
+    if (error.message === 'APPROVAL_NOT_FOUND') {
+      return res.status(404).json({ error: 'Approval not found' });
+    }
+    if (error.message === 'APPROVAL_ALREADY_PROCESSED') {
+      return res.status(400).json({ error: 'Approval already processed' });
+    }
+    if (error.message === 'EXPENSE_NOT_FOUND') {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+    if (error.message === 'EXPENSE_NOT_WAITING_APPROVAL') {
+      return res.status(400).json({ error: 'Expense is not in approval workflow' });
+    }
+
     console.error('Process approval error:', error);
-    res.status(500).json({ error: 'Error processing approval' });
+    return res.status(500).json({ error: 'Error processing approval' });
+  } finally {
+    await session.endSession();
   }
 };
 

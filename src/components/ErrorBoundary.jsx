@@ -5,6 +5,7 @@ class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false };
+    this.handleRetry = this.handleRetry.bind(this);
   }
 
   static getDerivedStateFromError(error) {
@@ -16,9 +17,9 @@ class ErrorBoundary extends Component {
     this.setState({ error, errorInfo });
   }
 
-  handleRetry = () => {
+  handleRetry() {
     this.setState({ hasError: false, error: undefined, errorInfo: undefined });
-  };
+  }
 
   render() {
     if (this.state.hasError) {

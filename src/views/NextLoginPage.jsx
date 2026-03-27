@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import AppLogo from '../components/AppLogo';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import { sendPasswordResetEmail } from '../services/emailService';
+import { getApiErrorMessage } from '../services/api';
 import { useToast } from '../components/Toast.jsx';
-import { Receipt, Mail, Lock, Eye, EyeOff, ArrowRight, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
-import AppLogo from '../components/AppLogo';
 
-const Login = () => {
+export default function NextLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -18,8 +21,14 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   const { login } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
   const toast = useToast();
+
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(''), 3000);
+    return () => clearTimeout(timer);
+  }, [error]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,12 +38,12 @@ const Login = () => {
     try {
       const user = await login(email, password);
       if (user.isTemporaryPassword) {
-        navigate('/change-password');
+        router.push('/change-password');
       } else {
-        navigate('/dashboard');
+        router.push('/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Invalid email or password. Please try again.');
+      setError(getApiErrorMessage(err, 'Invalid email or password. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -47,19 +56,10 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/forgot-password', { email: resetEmail });
+      await api.post('/auth/forgot-password', { email: resetEmail });
 
-      const emailSent = await sendPasswordResetEmail(
-        response.data.email,
-        response.data.temporaryPassword
-      );
-
-      if (emailSent) {
-        setResetMessage('Temporary password sent to your email. Please check your inbox.');
-        toast.success('Password reset email sent!');
-      } else {
-        setError('Failed to send email. Please try again.');
-      }
+      setResetMessage('If your account exists, a reset link has been sent to your email.');
+      toast.success('Password reset link sent.');
 
       setTimeout(() => {
         setShowForgotPassword(false);
@@ -67,7 +67,7 @@ const Login = () => {
         setResetMessage('');
       }, 3000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to send reset email');
+      setError(getApiErrorMessage(err, 'Failed to send reset link'));
     } finally {
       setLoading(false);
     }
@@ -78,11 +78,8 @@ const Login = () => {
       <div className="min-h-screen flex items-center justify-center px-4 py-12">
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg shadow-blue-500/30 mb-6 hover:scale-110 transition-transform duration-300">
-              <Mail className="w-10 h-10 text-white" />
-            </div>
             <h1 className="text-4xl font-bold text-white mb-2">Reset Password</h1>
-            <p className="text-slate-400 text-lg">Enter your email to receive a temporary password</p>
+            <p className="text-slate-400 text-lg">Enter your email to receive a secure reset link</p>
           </div>
 
           <div className="bg-white/5 backdrop-blur-md rounded-3xl shadow-2xl border border-white/10 p-8">
@@ -102,10 +99,7 @@ const Login = () => {
 
             <form onSubmit={handleForgotPassword} className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-slate-300 mb-2 flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-slate-400" />
-                  Email Address <span className="text-red-400">*</span>
-                </label>
+                <label className="block text-sm font-bold text-slate-300 mb-2">Email Address</label>
                 <input
                   type="email"
                   value={resetEmail}
@@ -119,12 +113,12 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3.5 px-6 rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/30 hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2 group"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3.5 px-6 rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <><Loader2 className="w-5 h-5 animate-spin" />Sending Reset Email...</>
                 ) : (
-                  <>Send Reset Email<ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></>
+                  <>Send Reset Email<ArrowRight className="w-5 h-5" /></>
                 )}
               </button>
 
@@ -161,10 +155,7 @@ const Login = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-bold text-slate-300 mb-2 flex items-center gap-2">
-                <Mail className="w-4 h-4 text-slate-400" />
-                Email Address <span className="text-red-400">*</span>
-              </label>
+              <label className="block text-sm font-bold text-slate-300 mb-2">Email Address</label>
               <input
                 type="email"
                 value={email}
@@ -176,10 +167,7 @@ const Login = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-300 mb-2 flex items-center gap-2">
-                <Lock className="w-4 h-4 text-slate-400" />
-                Password <span className="text-red-400">*</span>
-              </label>
+              <label className="block text-sm font-bold text-slate-300 mb-2">Password</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -212,12 +200,12 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3.5 px-6 rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/30 hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2 group"
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3.5 px-6 rounded-xl font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <><Loader2 className="w-5 h-5 animate-spin" />Signing In...</>
               ) : (
-                <>Sign In<ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></>
+                <>Sign In<ArrowRight className="w-5 h-5" /></>
               )}
             </button>
           </form>
@@ -225,19 +213,13 @@ const Login = () => {
           <div className="mt-8 pt-6 border-t border-white/10 text-center">
             <p className="text-sm text-slate-400">
               Don't have an account?{' '}
-              <Link to="/signup" className="font-bold text-blue-400 hover:text-blue-300 transition-colors hover:underline">
+              <Link href="/signup" className="font-bold text-blue-400 hover:text-blue-300 transition-colors hover:underline">
                 Sign Up
               </Link>
             </p>
           </div>
         </div>
-
-        <div className="mt-6 text-center">
-          <p className="text-xs text-slate-500">Secure login powered by modern authentication</p>
-        </div>
       </div>
     </div>
   );
-};
-
-export default Login;
+}

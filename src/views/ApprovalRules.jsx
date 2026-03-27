@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Settings, CheckSquare, Users, X, AlertCircle } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../components/Toast.jsx';
+import SelectField from '../components/SelectField.jsx';
 
 const ApprovalRules = () => {
   const [rules, setRules] = useState([]);
@@ -330,23 +331,16 @@ const ApprovalRules = () => {
                             <label className="block text-sm font-bold text-slate-300 mb-2">
                               Approvers <span className="text-red-400">*</span>
                             </label>
-                            <select multiple value={step.approvers}
-                              onChange={(e) => {
-                                const selected = Array.from(e.target.selectedOptions, option => option.value);
-                                updateStep(index, 'approvers', selected);
-                              }}
-                              className="w-full px-4 py-3 bg-slate-800 border border-white/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-white"
-                              size={4}
-                            >
-                              {managers.map((manager) => (
-                                <option key={manager._id} value={manager._id} className="py-2 bg-slate-800">
-                                  {manager.name} ({manager.role})
-                                </option>
-                              ))}
-                            </select>
+                            <SelectField 
+                              value={step.approvers}
+                              onChange={(values) => updateStep(index, 'approvers', Array.isArray(values) ? values : values.target?.value ? [values.target.value] : [])}
+                              options={managers.map((manager) => ({ value: manager._id, label: `${manager.name} (${manager.role})` }))}
+                              placeholder="Select approvers"
+                              multiple={true}
+                            />
                             <div className="flex items-start gap-2 mt-2">
                               <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
-                              <p className="text-xs text-blue-400 font-medium">Hold Ctrl/Cmd to select multiple approvers</p>
+                              <p className="text-xs text-blue-400 font-medium">Select multiple approvers to require their approval</p>
                             </div>
                           </div>
 
@@ -354,14 +348,17 @@ const ApprovalRules = () => {
                             <label className="block text-sm font-bold text-slate-300 mb-2">
                               Approval Type <span className="text-red-400">*</span>
                             </label>
-                            <select value={step.approvalType} onChange={(e) => updateStep(index, 'approvalType', e.target.value)}
-                              className="w-full px-4 py-3.5 bg-slate-800 border border-white/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-white"
-                            >
-                              <option value="all" className="bg-slate-800">All must approve</option>
-                              <option value="percentage" className="bg-slate-800">Percentage based</option>
-                              <option value="specific" className="bg-slate-800">Specific approver</option>
-                              <option value="hybrid" className="bg-slate-800">Hybrid (percentage OR specific)</option>
-                            </select>
+                            <SelectField 
+                              value={step.approvalType}
+                              onChange={(e) => updateStep(index, 'approvalType', e.target.value)}
+                              options={[
+                                { value: 'all', label: 'All must approve' },
+                                { value: 'percentage', label: 'Percentage based' },
+                                { value: 'specific', label: 'Specific approver' },
+                                { value: 'hybrid', label: 'Hybrid (percentage OR specific)' }
+                              ]}
+                              placeholder="Select approval type"
+                            />
                           </div>
 
                           {(step.approvalType === 'percentage' || step.approvalType === 'hybrid') && (
@@ -384,20 +381,13 @@ const ApprovalRules = () => {
                               <label className="block text-sm font-bold text-slate-300 mb-2">
                                 Specific Approvers <span className="text-red-400">*</span>
                               </label>
-                              <select multiple value={step.specificApprovers}
-                                onChange={(e) => {
-                                  const selected = Array.from(e.target.selectedOptions, option => option.value);
-                                  updateStep(index, 'specificApprovers', selected);
-                                }}
-                                className="w-full px-4 py-3 bg-slate-800 border border-white/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-white"
-                                size={4}
-                              >
-                                {managers.map((manager) => (
-                                  <option key={manager._id} value={manager._id} className="py-2 bg-slate-800">
-                                    {manager.name} ({manager.role})
-                                  </option>
-                                ))}
-                              </select>
+                              <SelectField 
+                                value={step.specificApprovers}
+                                onChange={(values) => updateStep(index, 'specificApprovers', Array.isArray(values) ? values : values.target?.value ? [values.target.value] : [])}
+                                options={managers.map((manager) => ({ value: manager._id, label: `${manager.name} (${manager.role})` }))}
+                                placeholder="Select specific approvers"
+                                multiple={true}
+                              />
                             </div>
                           )}
                         </div>

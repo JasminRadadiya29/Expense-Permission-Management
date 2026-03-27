@@ -4,7 +4,8 @@ import { validateApprovalRulePayload } from '../../../../lib/validation.js';
 
 export const runtime = 'nodejs';
 
-export async function PUT(request, { params }) {
+export async function PUT(request, context) {
+  const params = await context.params;
   return executeController(request, approvalRuleController.updateApprovalRule, {
     params,
     roles: ['Admin'],
@@ -12,7 +13,8 @@ export async function PUT(request, { params }) {
   });
 }
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, context) {
+  const params = await context.params;
   return executeController(request, approvalRuleController.deleteApprovalRule, {
     params,
     roles: ['Admin']

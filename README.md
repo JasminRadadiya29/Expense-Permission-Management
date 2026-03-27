@@ -1,119 +1,92 @@
-# 💼 ExpenseFlow — Smart Expense Management
+# ExpenseFlow (Next.js)
 
-> A full-stack expense management platform with multi-level approvals, real-time currency conversion, and a premium dark UI.
+ExpenseFlow is a full-stack expense approval system built on Next.js App Router with MongoDB.
 
----
+## What this project is
 
-## ✨ Features
+- Single Next.js application for UI + API routes (`app/api/**`)
+- React client-side dashboard UI (role-based)
+- JWT auth + refresh token flow
+- Multi-step approval rules (all / percentage / specific / hybrid)
 
-### 👤 Role-Based Access
-| Role | Capabilities |
-|---|---|
-| **Employee** | Submit expenses, track status, convert currencies |
-| **Manager** | Review & approve/reject team expenses, view reports |
-| **Admin** | Manage all users, assign roles & managers |
+## Runtime Architecture (Actual)
 
-### 🧾 Expense Management
-- Submit expenses with category, amount, currency, description & receipt upload
-- Real-time **multi-currency conversion** (live exchange rates)
-- Status tracking: `Pending → Approved / Rejected`
-- Filter & search expenses by category, status, date
+1. Browser loads App Router pages in `app/` (`/`, `/login`, `/dashboard`, `/expenses`, ...)
+2. Each page wraps content with shared providers (`ErrorBoundary`, `ToastProvider`, `AuthProvider`)
+3. Frontend calls `/api/*` through `src/services/api.js`
+4. Next route handlers in `app/api/**/route.js` call `executeController(...)`
+5. `lib/routeHandler.js` runs: DB connect -> validation -> auth/authorize -> controller
+6. Controllers (`server/controllers/*`) read/write MongoDB via Mongoose models
 
-### ✅ Approval Workflows
-- Configurable **multi-step approval rules**
-- Approval types: **All Required**, **Percentage-based**, **Specific Approver**, **Hybrid**
-- Managers receive itemized approval requests with comments
+For a detailed flow map, see `docs/ARCHITECTURE.md`.
 
-### 🛡️ Auth & Security
-- JWT-based authentication with refresh handling
-- Forced **password change** on first login (temporary password flow)
-- Secure password requirements enforcement
-- Email-based **forgot password** / reset flow (via EmailJS)
+## Tech Stack
 
-### 🎨 UI/UX
-- **Dark glassmorphism** design system throughout
-- Animated starfield background
-- Toast notifications (no intrusive `alert()` dialogs)
-- Fully responsive for desktop & mobile
-
----
-
-## 🛠️ Tech Stack
-
-**Frontend**
-- React 18 + Vite
+- Next.js 15 (App Router)
+- React 18
 - Tailwind CSS
-- Lucide React (icons)
-- React Router DOM
-
-**Backend**
-- Node.js + Express
 - MongoDB + Mongoose
-- JWT authentication
-- EmailJS (transactional email)
+- JWT auth
+- EmailJS (client-triggered transactional email)
 
----
-
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
-- Node.js ≥ 18
-- MongoDB Atlas account (or local MongoDB)
 
-### Installation
+- Node.js 18+
+- MongoDB connection string
+
+### 1) Install
 
 ```bash
-# Clone the repo
-git clone https://github.com/your-username/expense-management.git
-cd expense-management
-
-# Install dependencies
 npm install
 ```
 
-### Environment Variables
+### 2) Configure env
 
-Create a `.env` file in the root directory:
+Copy `.env.example` to `.env.local` and fill values.
 
-```env
-MONGODB_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret_key
-PORT=5000
-NODE_ENV=development
-```
+Required keys:
 
-### Run the App
+- `MONGODB_URI`
+- `JWT_SECRET`
+- `JWT_EXPIRES_IN`
+- `JWT_REFRESH_EXPIRES_IN`
+
+### 3) Run locally
 
 ```bash
-# Start both frontend and backend concurrently
 npm run dev
 ```
 
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:5000`
+App URL: `http://localhost:3000`
 
----
+### 4) Production build check
 
-## 📁 Project Structure
-
-```
-expense-management/
-├── server/
-│   ├── controllers/       # Business logic
-│   ├── models/            # Mongoose schemas
-│   ├── routes/            # API routes
-│   ├── middleware/        # Auth, validation, security
-│   └── index.js
-├── src/
-│   ├── components/        # Shared UI components
-│   ├── pages/             # Route-level page components
-│   ├── contexts/          # Auth context
-│   └── services/          # API + email services
-└── index.html
+```bash
+npm run build
+npm start
 ```
 
----
+## Deployment Notes
 
-## 📜 License
+- `next.config.mjs` uses `output: 'standalone'` for container-friendly deployment
+- Deployable to Vercel, Render, Railway, Fly.io, or self-hosted Node runtime
+- Make sure production environment variables are set before start
 
-MIT © 2024 — Feel free to fork and build on it.
+## Important Security Note
+
+If real credentials were committed in `.env`/`.env.local`, rotate them immediately (MongoDB password, JWT secret, EmailJS keys).
+
+## Project Structure (Current)
+
+```text
+app/                    # Next.js App Router pages + API route handlers
+lib/                    # DB connection, request pipeline, validations
+server/
+	controllers/          # Business logic per domain
+	middleware/           # JWT auth + role authorization
+	models/               # Mongoose schemas
+src/                    # Client UI app, views, components, context, API client
+docs/                   # Architecture and refactor guidance
+```

@@ -11,6 +11,8 @@ export async function GET(request) {
 export async function POST(request) {
   return executeController(request, approvalRuleController.createApprovalRule, {
     roles: ['Admin'],
-    validateBody: validateApprovalRulePayload
+    validateBody: validateApprovalRulePayload,
+    csrf: true,
+    idempotent: true,
   });
 }

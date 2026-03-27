@@ -4,6 +4,8 @@ import api from '../services/api';
 import { useToast } from '../components/Toast.jsx';
 import { Plus, Upload, DollarSign, Clock, TrendingUp, X, FileText, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import StatCard from '../components/StatCard.jsx';
+import SelectField from '../components/SelectField.jsx';
+import { SUPPORTED_CURRENCIES, getCompanyBaseCurrency, formatCurrencyAmount, convertCurrencyAmount } from '../services/currency';
 
 const EXPENSE_CATEGORIES = ['Travel', 'Food', 'Office Supplies', 'Software', 'Hardware', 'Marketing', 'Other'];
 const PAID_BY_OPTIONS = ['Company', 'Personal'];
@@ -51,6 +53,7 @@ const getApiValidationErrorMessage = (err) => {
 
 const EmployeeExpenses = () => {
   const { user } = useAuth();
+  const baseCurrency = getCompanyBaseCurrency(user);
   const toast = useToast();
   const [expenses, setExpenses] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -66,28 +69,38 @@ const EmployeeExpenses = () => {
     category: 'Travel',
     date: new Date().toISOString().split('T')[0],
     amount: '',
-    currency: user?.currency || 'USD',
+    currency: baseCurrency,
     amountInBaseCurrency: '',
     paidBy: 'Personal',
     remarks: '',
     receiptUrl: ''
   });
 
+  useEffect(() => {
+    setFormData((prev) => {
+      if (prev.amount || prev.currency === baseCurrency) {
+        return prev;
+      }
+
+      return { ...prev, currency: baseCurrency };
+    });
+  }, [baseCurrency]);
+
   useEffect(() => { fetchExpenses(); }, []);
 
   useEffect(() => {
-    if (formData.amount && formData.currency && user?.company?.baseCurrency) {
-      if (formData.currency === user.company.baseCurrency) {
+    if (formData.amount && formData.currency && baseCurrency) {
+      if (formData.currency === baseCurrency) {
         const amount = parseFloat(formData.amount);
         setFormData(prev => ({ ...prev, amountInBaseCurrency: amount }));
         setConvertedAmount(amount);
         setExchangeRate(1);
         setConversionError(null);
       } else {
-        convertCurrency(formData.amount, formData.currency, user.company.baseCurrency);
+        convertCurrency(formData.amount, formData.currency, baseCurrency);
       }
     }
-  }, [formData.amount, formData.currency]);
+  }, [formData.amount, formData.currency, baseCurrency]);
 
   const fetchExpenses = async () => {
     try {
@@ -103,22 +116,16 @@ const EmployeeExpenses = () => {
     setConversionLoading(true);
     setConversionError(null);
     try {
-      const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${fromCurrency}`);
-      if (!response.ok) throw new Error('Failed to fetch exchange rates');
-      const data = await response.json();
-      const rate = data.rates[toCurrency];
-      if (!rate) throw new Error(`Exchange rate not found for ${toCurrency}`);
-      const convertedValue = parseFloat(amount) * rate;
-      setExchangeRate(rate);
-      setConvertedAmount(convertedValue);
-      setFormData(prev => ({ ...prev, amountInBaseCurrency: convertedValue }));
+      const conversion = await convertCurrencyAmount({ amount, fromCurrency, toCurrency });
+      setExchangeRate(conversion.rate);
+      setConvertedAmount(conversion.convertedAmount);
+      setFormData(prev => ({ ...prev, amountInBaseCurrency: conversion.convertedAmount }));
     } catch (err) {
       console.error('Currency conversion error:', err);
       setConversionError(err.message);
-      const fallbackAmount = parseFloat(amount);
-      setConvertedAmount(fallbackAmount);
-      setExchangeRate(1);
-      setFormData(prev => ({ ...prev, amountInBaseCurrency: fallbackAmount }));
+      setConvertedAmount(null);
+      setExchangeRate(null);
+      setFormData(prev => ({ ...prev, amountInBaseCurrency: '' }));
     } finally {
       setConversionLoading(false);
     }
@@ -173,7 +180,7 @@ const EmployeeExpenses = () => {
       setFormData({
         description: '', category: 'Travel',
         date: new Date().toISOString().split('T')[0],
-        amount: '', currency: user?.currency || 'USD',
+        amount: '', currency: baseCurrency,
         amountInBaseCurrency: '', paidBy: 'Personal',
         remarks: '', receiptUrl: ''
       });
@@ -212,41 +219,12 @@ const EmployeeExpenses = () => {
     return colors[category] || colors['Other'];
   };
 
-  const getCurrencySymbol = (currency) => {
-    const symbols = {
-      'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'INR': '₹', 'CAD': 'C$', 'AUD': 'A$',
-      'AED': 'د.إ', 'AFN': '؋', 'ALL': 'L', 'AMD': '֏', 'ANG': 'ƒ', 'AOA': 'Kz', 'ARS': '$',
-      'AWG': 'ƒ', 'AZN': '₼', 'BAM': 'КМ', 'BBD': '$', 'BDT': '৳', 'BGN': 'лв', 'BHD': 'د.ب',
-      'BIF': 'FBu', 'BMD': '$', 'BND': '$', 'BOB': 'Bs', 'BRL': 'R$', 'BSD': '$', 'BTN': 'Nu',
-      'BWP': 'P', 'BYN': 'Br', 'BZD': '$', 'CDF': 'FC', 'CHF': 'CHF', 'CLP': '$', 'CNY': '¥',
-      'COP': '$', 'CRC': '₡', 'CUC': '$', 'CUP': '$', 'CVE': '$', 'CZK': 'Kč', 'DJF': 'Fdj',
-      'DKK': 'kr', 'DOP': '$', 'DZD': 'د.ج', 'EGP': '£', 'ERN': 'Nfk', 'ETB': 'Br', 'FJD': '$',
-      'FKP': '£', 'FOK': 'kr', 'GEL': '₾', 'GGP': '£', 'GHS': '₵', 'GIP': '£', 'GMD': 'D',
-      'GNF': 'FG', 'GTQ': 'Q', 'GYD': '$', 'HKD': '$', 'HNL': 'L', 'HRK': 'kn', 'HTG': 'G',
-      'HUF': 'Ft', 'IDR': 'Rp', 'ILS': '₪', 'IMP': '£', 'IQD': 'ع.د', 'IRR': '﷼', 'ISK': 'kr',
-      'JEP': '£', 'JMD': '$', 'JOD': 'د.ا', 'KES': 'KSh', 'KGS': 'с', 'KHR': '៛', 'KID': '$',
-      'KMF': 'CF', 'KRW': '₩', 'KWD': 'د.ك', 'KYD': '$', 'KZT': '₸', 'LAK': '₭', 'LBP': 'ل.ل',
-      'LKR': '₨', 'LRD': '$', 'LSL': 'L', 'LYD': 'ل.د', 'MAD': 'د.م.', 'MDL': 'L', 'MGA': 'Ar',
-      'MKD': 'ден', 'MMK': 'K', 'MNT': '₮', 'MOP': 'MOP$', 'MRU': 'UM', 'MUR': '₨', 'MVR': '.ރ',
-      'MWK': 'MK', 'MXN': '$', 'MYR': 'RM', 'MZN': 'MT', 'NAD': '$', 'NGN': '₦', 'NIO': 'C$',
-      'NOK': 'kr', 'NPR': '₨', 'NZD': '$', 'OMR': 'ر.ع.', 'PAB': 'B/.', 'PEN': 'S/', 'PGK': 'K',
-      'PHP': '₱', 'PKR': '₨', 'PLN': 'zł', 'PYG': '₲', 'QAR': 'ر.ق', 'RON': 'lei', 'RSD': 'дин',
-      'RUB': '₽', 'RWF': 'RF', 'SAR': 'ر.س', 'SBD': '$', 'SCR': '₨', 'SDG': 'ج.س.', 'SEK': 'kr',
-      'SGD': '$', 'SHP': '£', 'SLL': 'Le', 'SOS': 'S', 'SRD': '$', 'SSP': '£', 'STN': 'Db',
-      'SYP': '£', 'SZL': 'L', 'THB': '฿', 'TJS': 'SM', 'TMT': 'T', 'TND': 'د.ت', 'TOP': 'T$',
-      'TRY': '₺', 'TTD': '$', 'TVD': '$', 'TWD': 'NT$', 'TZS': 'TSh', 'UAH': '₴', 'UGX': 'USh',
-      'UYU': '$', 'UZS': 'лв', 'VES': 'Bs.S', 'VND': '₫', 'VUV': 'Vt', 'WST': 'WS$', 'XAF': 'FCFA',
-      'XCD': '$', 'XDR': 'SDR', 'XOF': 'CFA', 'XPF': '₣', 'YER': '﷼', 'ZAR': 'R', 'ZMW': 'ZK', 'ZWL': '$'
-    };
-    return symbols[currency] || currency;
-  };
-
   const totalExpenses = expenses.reduce((sum, exp) => sum + (exp.amountInBaseCurrency || 0), 0);
   const pendingExpenses = expenses.filter(e => e.status === 'Waiting Approval').length;
   const approvedExpenses = expenses.filter(e => e.status === 'Approved').length;
 
   const inputClass = "w-full px-4 py-3.5 bg-white/5 border border-white/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white font-medium placeholder-slate-500";
-  const selectClass = "w-full px-4 py-3.5 bg-slate-800 border border-white/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-white";
+  const selectClass = "w-full px-4 py-3.5 bg-slate-800/60 border border-white/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium text-white hover:bg-slate-800/80";
   const labelClass = "block text-sm font-bold text-slate-300 mb-2";
 
   const closeModal = () => {
@@ -280,8 +258,8 @@ const EmployeeExpenses = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <StatCard
             title="Total Expenses"
-            value={totalExpenses.toFixed(2)}
-            subtitle={<span className="text-slate-400">All time ({user?.company?.baseCurrency})</span>}
+            value={formatCurrencyAmount(totalExpenses, baseCurrency)}
+            subtitle={<span className="text-slate-400">All time ({baseCurrency})</span>}
             icon={<DollarSign className="w-7 h-7 text-white" />}
             iconBg="from-blue-500 to-indigo-600"
           />
@@ -338,11 +316,11 @@ const EmployeeExpenses = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-white">
-                        {getCurrencySymbol(expense.currency)}{expense.amount.toFixed(2)} {expense.currency}
+                        {formatCurrencyAmount(expense.amountInBaseCurrency || expense.amount, baseCurrency)}
                       </div>
-                      {expense.currency !== user?.company?.baseCurrency && (
+                      {expense.currency !== baseCurrency && (
                         <div className="text-xs text-slate-400 font-medium">
-                          ({getCurrencySymbol(user?.company?.baseCurrency)}{expense.amountInBaseCurrency?.toFixed(2)} {user?.company?.baseCurrency})
+                          Original: {formatCurrencyAmount(expense.amount, expense.currency)}
                         </div>
                       )}
                     </td>
@@ -452,11 +430,12 @@ const EmployeeExpenses = () => {
                 </div>
                 <div>
                   <label className={labelClass}>Category <span className="text-red-400">*</span></label>
-                  <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className={selectClass}>
-                    {EXPENSE_CATEGORIES.map(c => (
-                      <option key={c} value={c} className="bg-slate-800">{c}</option>
-                    ))}
-                  </select>
+                  <SelectField
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    options={EXPENSE_CATEGORIES}
+                    placeholder="Select category"
+                  />
                 </div>
               </div>
 
@@ -480,16 +459,17 @@ const EmployeeExpenses = () => {
                 </div>
                 <div>
                   <label className={labelClass}>Currency <span className="text-red-400">*</span></label>
-                  <select value={formData.currency} onChange={(e) => setFormData({ ...formData, currency: e.target.value })} className={selectClass}>
-                    {['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'INR', 'AED', 'AFN', 'ALL', 'AMD', 'ANG', 'AOA', 'ARS', 'AWG', 'AZN', 'BAM', 'BBD', 'BDT', 'BGN', 'BHD', 'BIF', 'BMD', 'BND', 'BOB', 'BRL', 'BSD', 'BTN', 'BWP', 'BYN', 'BZD', 'CDF', 'CHF', 'CLP', 'CNY', 'COP', 'CRC', 'CUC', 'CUP', 'CVE', 'CZK', 'DJF', 'DKK', 'DOP', 'DZD', 'EGP', 'ERN', 'ETB', 'FJD', 'FKP', 'FOK', 'GEL', 'GHS', 'GIP', 'GMD', 'GNF', 'GTQ', 'GYD', 'HKD', 'HNL', 'HRK', 'HTG', 'HUF', 'IDR', 'ILS', 'IQD', 'IRR', 'ISK', 'JMD', 'JOD', 'KES', 'KGS', 'KHR', 'KMF', 'KRW', 'KWD', 'KYD', 'KZT', 'LAK', 'LBP', 'LKR', 'LRD', 'LSL', 'LYD', 'MAD', 'MDL', 'MGA', 'MKD', 'MMK', 'MNT', 'MOP', 'MRU', 'MUR', 'MVR', 'MWK', 'MXN', 'MYR', 'MZN', 'NAD', 'NGN', 'NIO', 'NOK', 'NPR', 'NZD', 'OMR', 'PAB', 'PEN', 'PGK', 'PHP', 'PKR', 'PLN', 'PYG', 'QAR', 'RON', 'RSD', 'RUB', 'RWF', 'SAR', 'SBD', 'SCR', 'SDG', 'SEK', 'SGD', 'SHP', 'SLL', 'SOS', 'SRD', 'SSP', 'STN', 'SYP', 'SZL', 'THB', 'TJS', 'TMT', 'TND', 'TOP', 'TRY', 'TTD', 'TWD', 'TZS', 'UAH', 'UGX', 'UYU', 'UZS', 'VES', 'VND', 'VUV', 'WST', 'XAF', 'XCD', 'XOF', 'XPF', 'YER', 'ZAR', 'ZMW', 'ZWL'].map(c => (
-                      <option key={c} value={c} className="bg-slate-800">{c}</option>
-                    ))}
-                  </select>
+                  <SelectField
+                    value={formData.currency}
+                    onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                    options={SUPPORTED_CURRENCIES}
+                    placeholder="Select currency"
+                  />
                 </div>
               </div>
 
               {/* Currency Conversion Display */}
-              {formData.amount && formData.currency && user?.company?.baseCurrency && formData.currency !== user.company.baseCurrency && (
+              {formData.amount && formData.currency && baseCurrency && formData.currency !== baseCurrency && (
                 <div className={`rounded-xl p-4 border ${conversionError ? 'bg-red-500/10 border-red-500/30' : 'bg-blue-500/10 border-blue-500/20'}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -511,10 +491,10 @@ const EmployeeExpenses = () => {
                       ) : convertedAmount ? (
                         <div>
                           <span className="text-lg font-bold text-blue-300">
-                            {getCurrencySymbol(user?.company?.baseCurrency)}{convertedAmount.toFixed(2)} {user?.company?.baseCurrency}
+                            {formatCurrencyAmount(convertedAmount, baseCurrency)}
                           </span>
                           <div className="text-xs text-slate-400">
-                            From {getCurrencySymbol(formData.currency)}{formData.amount} {formData.currency} (Rate: {exchangeRate?.toFixed(4)})
+                            From {formatCurrencyAmount(formData.amount, formData.currency)} (Rate: {exchangeRate?.toFixed(4)})
                           </div>
                         </div>
                       ) : null}
@@ -526,10 +506,12 @@ const EmployeeExpenses = () => {
               {/* Paid By */}
               <div>
                 <label className={labelClass}>Paid By <span className="text-red-400">*</span></label>
-                <select value={formData.paidBy} onChange={(e) => setFormData({ ...formData, paidBy: e.target.value })} className={selectClass}>
-                  <option value="Personal" className="bg-slate-800">Personal</option>
-                  <option value="Company" className="bg-slate-800">Company</option>
-                </select>
+                <SelectField
+                  value={formData.paidBy}
+                  onChange={(e) => setFormData({ ...formData, paidBy: e.target.value })}
+                  options={PAID_BY_OPTIONS}
+                  placeholder="Select payment method"
+                />
               </div>
 
               {/* Remarks */}

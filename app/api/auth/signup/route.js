@@ -5,5 +5,13 @@ import { validateSignupPayload } from '../../../../lib/validation.js';
 export const runtime = 'nodejs';
 
 export async function POST(request) {
-  return executeController(request, authController.signup, { validateBody: validateSignupPayload });
+  return executeController(request, authController.signup, {
+    validateBody: validateSignupPayload,
+    rateLimit: {
+      key: 'auth-signup',
+      maxRequests: 5,
+      windowMs: 30 * 60 * 1000,
+      identifierFields: ['email'],
+    },
+  });
 }

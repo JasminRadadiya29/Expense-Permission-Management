@@ -4,7 +4,8 @@ import { validateUpdateUserPayload } from '../../../../lib/validation.js';
 
 export const runtime = 'nodejs';
 
-export async function PUT(request, { params }) {
+export async function PUT(request, context) {
+  const params = await context.params;
   return executeController(request, userController.updateUser, {
     params,
     roles: ['Admin'],

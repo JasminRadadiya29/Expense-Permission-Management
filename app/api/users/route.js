@@ -11,6 +11,14 @@ export async function GET(request) {
 export async function POST(request) {
   return executeController(request, userController.createUser, {
     roles: ['Admin'],
-    validateBody: validateCreateUserPayload
+    validateBody: validateCreateUserPayload,
+    rateLimit: {
+      key: 'admin-create-user',
+      maxRequests: 20,
+      windowMs: 60 * 60 * 1000,
+      identifierFields: ['email'],
+    },
+    csrf: true,
+    idempotent: true,
   });
 }

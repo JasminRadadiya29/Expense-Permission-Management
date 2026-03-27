@@ -3,8 +3,12 @@ import api from '../services/api';
 import { useToast } from '../components/Toast.jsx';
 import StatCard from '../components/StatCard.jsx';
 import { Check, X, DollarSign, Clock, CheckCircle, FileText, User, Calendar, CreditCard, MessageSquare, TrendingUp } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { formatCurrencyAmount, getCompanyBaseCurrency } from '../services/currency';
 
 const ManagerDashboard = () => {
+  const { user } = useAuth();
+  const baseCurrency = getCompanyBaseCurrency(user);
   const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedApproval, setSelectedApproval] = useState(null);
@@ -59,7 +63,7 @@ const ManagerDashboard = () => {
     return colors[category] || colors['Other'];
   };
 
-  const totalAmount = approvals.reduce((sum, a) => sum + (a.expense?.amount || 0), 0);
+  const totalAmount = approvals.reduce((sum, a) => sum + (a.expense?.amountInBaseCurrency || a.expense?.amount || 0), 0);
 
   return (
     <div className="min-h-screen">
@@ -89,7 +93,7 @@ const ManagerDashboard = () => {
           />
           <StatCard
             title="Total Amount"
-            value={`$${totalAmount.toFixed(2)}`}
+            value={formatCurrencyAmount(totalAmount, baseCurrency)}
             subtitle={<span className="text-blue-400">Pending value</span>}
             icon={<DollarSign className="w-7 h-7 text-white" />}
             iconBg="from-blue-500 to-indigo-600"
@@ -135,7 +139,10 @@ const ManagerDashboard = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-white">
-                      {approval.expense.amount.toFixed(2)} {approval.expense.currency}
+                      <div>{formatCurrencyAmount(approval.expense.amountInBaseCurrency || approval.expense.amount, baseCurrency)}</div>
+                      {approval.expense.currency !== baseCurrency && (
+                        <div className="text-xs text-slate-400 font-medium">Original: {formatCurrencyAmount(approval.expense.amount, approval.expense.currency)}</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border bg-amber-500/15 text-amber-300 border-amber-500/30">
@@ -218,7 +225,15 @@ const ManagerDashboard = () => {
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { icon: <FileText className="w-4 h-4 text-slate-400" />, label: 'Description', value: selectedApproval.expense.description },
-                    { icon: <DollarSign className="w-4 h-4 text-slate-400" />, label: 'Amount', value: `$${selectedApproval.expense.amount.toFixed(2)} ${selectedApproval.expense.currency}`, bold: true },
+                    {
+                      icon: <DollarSign className="w-4 h-4 text-slate-400" />,
+                      label: 'Amount',
+                      value:
+                        selectedApproval.expense.currency === baseCurrency
+                          ? formatCurrencyAmount(selectedApproval.expense.amountInBaseCurrency || selectedApproval.expense.amount, baseCurrency)
+                          : `${formatCurrencyAmount(selectedApproval.expense.amountInBaseCurrency || selectedApproval.expense.amount, baseCurrency)} (Original: ${formatCurrencyAmount(selectedApproval.expense.amount, selectedApproval.expense.currency)})`,
+                      bold: true
+                    },
                     { icon: <Calendar className="w-4 h-4 text-slate-400" />, label: 'Category', value: selectedApproval.expense.category },
                     { icon: <CreditCard className="w-4 h-4 text-slate-400" />, label: 'Paid By', value: selectedApproval.expense.paidBy },
                   ].map((item, i) => (

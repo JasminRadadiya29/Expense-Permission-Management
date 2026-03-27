@@ -11,6 +11,8 @@ export async function GET(request) {
 export async function POST(request) {
   return executeController(request, expenseController.createExpense, {
     roles: ['Admin', 'Manager', 'Employee'],
-    validateBody: validateCreateExpensePayload
+    validateBody: validateCreateExpensePayload,
+    csrf: true,
+    idempotent: true,
   });
 }
